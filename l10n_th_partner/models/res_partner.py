@@ -24,7 +24,7 @@ class ResPartner(models.Model):
 
     @api.constrains("company_id", "vat", "branch")
     def _check_company_id_vat_branch(self):
-        Partner = self.env["res.partner"]
+        partner_model = self.env["res.partner"]  # Renamed Partner to partner_model
         for rec in self.sudo():
             if rec.vat and rec.branch:
                 domain = [
@@ -33,7 +33,7 @@ class ResPartner(models.Model):
                 ]
                 if rec.company_id:
                     domain += [("company_id", "=", rec.company_id.id)]
-                partners = Partner.search(domain)
+                partners = partner_model.search(domain)  # Use renamed variable
                 if len(partners) > 1:
                     raise ValidationError(
                         _(
@@ -44,19 +44,20 @@ class ResPartner(models.Model):
     @api.model
     def create(self, vals):
         """Add inverted company names at creation if unavailable."""
-        context = dict(self.env.context)
-        vals.get("name", context.get("default_name"))
+        # The line `vals.get("name", context.get("default_name"))` had no effect.
+        # context = dict(self.env.context) # Context not used if the above line is removed.
         return super().create(vals)
 
     @api.model
     def _get_computed_name(self, lastname, firstname):
         name = super()._get_computed_name(lastname, firstname)
-        title = self.title.name
-        if name and title:
+        # Check if self.title exists before trying to access self.title.name
+        if self.title and self.title.name and name:  # Added check for self.title
+            title_name = self.title.name
             # disable space on title and name
             if self.env.company.no_space_title_name:
-                return "".join(p for p in (title, name) if p)
-            return " ".join(p for p in (title, name) if p)
+                return "".join(p for p in (title_name, name) if p)
+            return " ".join(p for p in (title_name, name) if p)
         return name
 
     @api.depends(
@@ -64,7 +65,10 @@ class ResPartner(models.Model):
     )
     def _compute_name(self):
         """Compute name with company only"""
-        partner_company = self.filtered(lambda l: l.is_company and l.name_company)
+        # Wrapped long comment line below
+        partner_company = self.filtered(
+            lambda rec_filter: rec_filter.is_company and rec_filter.name_company
+        )
         partner_inv = self - partner_company
         for rec in partner_company:
             prefix, suffix = False, False
@@ -86,3 +90,4 @@ class ResPartner(models.Model):
         """Skip inverse name for case chaging translation and title"""
         if not self.env.context.get("skip_inverse_name"):
             return super()._inverse_name_after_cleaning_whitespace()
+        return None  # Explicitly return None for consistent return statements

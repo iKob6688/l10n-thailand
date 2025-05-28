@@ -17,7 +17,7 @@ class IrTranslation(models.Model):
             "res.partner,lastname",
         ]
         for rec in self.filtered(
-            lambda l: l.type == "model" and l.name in recompute_fields
+            lambda r: r.type == "model" and r.name in recompute_fields
         ):
             model = rec.name.split(",")[0]
             obj = (
@@ -33,7 +33,7 @@ class IrTranslation(models.Model):
 
         # Recompute name for hr.employee's name",
         for rec in self.filtered(
-            lambda l: l.type == "model" and l.name == "resource.resource,name"
+            lambda r: r.type == "model" and r.name == "resource.resource,name"
         ):
             employee = self.env["hr.employee"].search(
                 [("resource_id", "=", rec.res_id)]

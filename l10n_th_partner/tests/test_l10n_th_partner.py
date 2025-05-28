@@ -12,21 +12,25 @@ class TestL10nThPartner(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.main_company = cls.env.ref("base.main_company")
-        cls.create_title(cls)
-        cls.create_original(cls, "Firstname", "Lastname")
+        cls.title = cls._create_title()  # Call as classmethod
+        cls.user = cls._create_original("Firstname", "Lastname")  # Call as classmethod
         cls.company_type = cls.env.ref("l10n_th_partner.company_type_3")
 
-    def create_title(self):
-        self.title = self.env["res.partner.title"].create(
+    @classmethod  # Make it a classmethod
+    def _create_title(cls):  # Change self to cls
+        return cls.env["res.partner.title"].create(  # Use cls.env
             {"name": "Miss", "shortcut": "Miss"}
         )
 
-    def create_original(self, firstname, lastname):
-        with Form(self.env["res.users"], view="base.view_users_form") as f:
+    @classmethod  # Make it a classmethod
+    def _create_original(cls, firstname, lastname):  # Change self to cls
+        with Form(
+            cls.env["res.users"], view="base.view_users_form"
+        ) as f:  # Use cls.env
             f.firstname = firstname
             f.lastname = lastname
             f.login = firstname
-        self.user = f.save()
+        return f.save()  # Return the created user
 
     def test_res_users(self):
         """Test that you change title"""

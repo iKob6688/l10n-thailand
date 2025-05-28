@@ -2,9 +2,13 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl.html)
 
 import csv
+import logging # Moved to top
 import os
 
 from odoo import api, fields, models
+from odoo.modules.module import get_module_path # Moved to top
+
+_logger = logging.getLogger(__name__) # Added logger instance
 
 
 class CityZipGeonamesImport(models.TransientModel):
@@ -55,22 +59,38 @@ class CityZipGeonamesImport(models.TransientModel):
     @api.model
     def get_and_parse_csv(self, country):
         if country.code == "TH":
-            path = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+            module_name = "l10n_th_base_location"
+            module_path = get_module_path(module_name) # Uses import from top
+
+            if not module_path:
+                # Fallback or raise error if module path not found, though unlikely for self.
+                return super().get_and_parse_csv(country)
+
             import_test = self._context.get("import_test", False)
+
             if import_test:
-                th_location_file = "demo/TH_th.txt"
-                en_location_file = "demo/TH_en.txt"
+                data_subdir = "demo"
             else:
-                th_location_file = "data/TH_th.txt"
-                en_location_file = "data/TH_en.txt"
+                data_subdir = "data"
+
             if self.location_thailand_language == "th":
-                file_path = os.path.join(path[:-6], th_location_file)
+                location_file_name = "TH_th.txt"
             else:
-                file_path = os.path.join(path[:-6], en_location_file)
-            data_file = open(file_path, "r", encoding="utf-8")
-            data_file.seek(0)
-            reader = csv.reader(data_file, delimiter="	")
-            parsed_csv = [row for i, row in enumerate(reader)]
-            data_file.close()
-            return parsed_csv
+                location_file_name = "TH_en.txt"
+
+            file_path = os.path.join(module_path, data_subdir, location_file_name)
+
+            try:
+                with open(file_path, "r", encoding="utf-8") as data_file:
+                    # No need for data_file.seek(0) when reading fresh
+                    reader = csv.reader(data_file, delimiter="\t")  # Original uses \t
+                    parsed_csv = list(reader)  # Use list() as suggested by pylint
+                return parsed_csv
+            except FileNotFoundError:
+                # Handle case where file might be missing, though it should be part of the module.
+                # Log an error or fall back to super.
+                # Let's log and fall back for robustness in case of packaging errors.
+                _logger.error("Thai location file not found: %s", file_path) # Use %s formatting
+                return super().get_and_parse_csv(country)
+
         return super().get_and_parse_csv(country)

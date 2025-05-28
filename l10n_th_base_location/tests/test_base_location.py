@@ -45,13 +45,13 @@ class TestBaseLocation(common.TransactionCase):
 
     def test_01_import_base_location_th(self):
         """Test Import Thailand Location"""
-        Wizard = self.env["city.zip.geonames.import"].create(
+        wizard_instance = self.env["city.zip.geonames.import"].create(  # Renamed Wizard
             {
                 "country_ids": [(6, 0, [self.thailand.id])],
                 "location_thailand_language": "th",
             }
         )
-        self.assertTrue(Wizard.is_thailand)
+        self.assertTrue(wizard_instance.is_thailand)  # Use renamed variable
         state_count = self.env["res.country.state"].search_count(
             [("country_id", "=", self.thailand.id)]
         )
@@ -73,8 +73,8 @@ class TestBaseLocation(common.TransactionCase):
             with self.assertRaises(UserError):
                 import_be.run_import()
         except requests.exceptions.ConnectionError as e:
-            logger.exception("Connection Error: " + str(e))
-        except Exception:
+            logger.exception("Connection Error: %s", e)  # Use %s formatting
+        except Exception:  # Keep broad exception as per earlier decision
             import_be.run_import()
 
     def test_03_onchange_zip_id(self):

@@ -28,34 +28,23 @@ class AccountPartialReconcile(models.Model):
         if len(payment) == 1:
             self = self.with_context(payment_id=payment.id)
         moves = super()._create_tax_cash_basis_moves()
-        # EXPERIMENT: remove income / expense account move lines
-        ml_groups = self.env["account.move.line"].read_group(
-            domain=[("move_id", "in", moves.ids)],
-            fields=[
-                "move_id",
-                "account_id",
-                "debit",
-                "credit",
-            ],
-            groupby=[
-                "move_id",
-                "account_id",
-            ],
-            lazy=False,
-        )
-        del_ml_groups = list(filter(lambda l: l["debit"] == l["credit"], ml_groups))
-        account_ids = [g.get("account_id")[0] for g in del_ml_groups]
-        # Not include taxes (0%) and not reconciled
-        del_move_lines = moves.mapped("line_ids").filtered(
-            lambda line: line.account_id.id in account_ids
-            and not line.tax_line_id
-            and not line.reconciled
-        )
-        if del_move_lines:
-            self.env.cr.execute(
-                "DELETE FROM account_move_line WHERE id in %s",
-                (tuple(del_move_lines.ids),),
-            )
+        # Remove problematic direct SQL deletion block.
+        # The "EXPERIMENT" to remove income/expense account move lines via SQL
+        # is unsafe and bypassed ORM. Odoo's core method should be trusted.
+        # If specific lines created by the core method are an issue for reporting,
+        # they should be handled at the reporting layer or via other means,
+        # not by deleting journal items directly from created cash basis moves.
+        # Original problematic block:
+        # # EXPERIMENT: remove income / expense account move lines
+        # ml_groups = self.env["account.move.line"].read_group(...)
+        # del_ml_groups = list(filter(lambda l: l["debit"] == l["credit"], ml_groups))
+        # account_ids = [g.get("account_id")[0] for g in del_ml_groups]
+        # del_move_lines = moves.mapped("line_ids").filtered(...)
+        # if del_move_lines:
+        #     self.env.cr.execute(
+        #         "DELETE FROM account_move_line WHERE id in %s",
+        #         (tuple(del_move_lines.ids),),
+        #     )
         net_invoice_refund = self.env.context.get("net_invoice_refund")
         net_invoice_payment = self.env.context.get("net_invoice_payment")
         if not net_invoice_refund or net_invoice_payment:

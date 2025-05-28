@@ -115,56 +115,12 @@ class AccountPayment(models.Model):
         self.ensure_one()
         self.move_id.create_wht_cert()
 
-    def _prepare_move_line_default_vals(self, write_off_line_vals=None):
-        """
-        Assign some data from write_off_line dict, to matched line_list
-        But because, there are possibility of same ['name', 'amount'],
-        so remove one matched line and return the reduced list
-        """
-        line_list = super()._prepare_move_line_default_vals(write_off_line_vals)
-        if isinstance(write_off_line_vals, dict) and write_off_line_vals:  # single
-            matched_line, line_list = self._update_line_vals_list(
-                line_list, write_off_line_vals
-            )
-            if matched_line:
-                line_list.append(matched_line)
-        elif isinstance(write_off_line_vals, list) and write_off_line_vals:  # multi
-            matched_lines = []
-            for write_off_line in write_off_line_vals:
-                matched_line, line_list = self._update_line_vals_list(
-                    line_list, write_off_line
-                )
-                if matched_line:
-                    matched_lines.append(matched_line)
-            line_list += matched_lines
-        return line_list
-
-    def _update_line_vals_list(self, line_list, write_off_line):
-        matched_line = False
-        reduced_line_list = []
-        for line in line_list:
-            # Find the matched line using account_id, label and amount.
-            if (
-                not matched_line
-                and line["name"] == write_off_line["name"]
-                and line["account_id"] == write_off_line["account_id"]
-                and abs(line["amount_currency"]) == abs(write_off_line["amount"])
-            ):
-                # partner
-                if write_off_line.get("partner_id"):
-                    line["partner_id"] = write_off_line["partner_id"]
-                # wht
-                if write_off_line.get("wht_tax_id"):
-                    wht_amount_base_company = self.currency_id._convert(
-                        write_off_line["wht_amount_base"],
-                        self.company_id.currency_id,
-                        self.company_id,
-                        self.date,
-                    )
-                    line["tax_base_amount"] = wht_amount_base_company
-                    line["wht_tax_id"] = write_off_line["wht_tax_id"]
-                # Return matched line
-                matched_line = line
-            else:
-                reduced_line_list.append(line)
-        return (matched_line, reduced_line_list)
+    # The method _prepare_move_line_default_vals and its helper _update_line_vals_list
+    # were heavily customized to inject WHT data into payment journal items.
+    # In Odoo 18, _prepare_move_line_default_vals has been removed from account.payment.
+    # The logic for creating payment move lines is now more centralized in the
+    # account.payment.register wizard (for UI payments) or within _create_payment_vals
+    # and related methods if payments are created programmatically.
+    # This functionality will need to be re-implemented by targeting the appropriate
+    # methods in account.payment.register or the new payment creation flow in account.payment.
+    # For now, these outdated overrides are removed.

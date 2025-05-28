@@ -14,16 +14,21 @@
             >
                 <field name="preview" />
             </xpath>
-            <xpath expr="//page/group[2]/group[2]/span[2]" position="after">
-                <span colspan="2">Quarter of the Year: %%(qoy)s</span>
-            </xpath>
-            <xpath expr="//page/group[2]/group[1]/span[2]" position="after">
-                <span
-                    colspan="2"
-                >Current Buddhist Era (BE) year with century: %%(year_be)s</span>
-                <span
-                    colspan="2"
-                >Current Buddhist Era (BE) Year without Century: %%(y_be)s</span>
+            <!-- Replace fragile index-based XPaths with a more robust one -->
+            <!-- Remove old XPaths for help text (done by not re-adding them) -->
+            <xpath expr="//field[@name='suffix']" position="after">
+                <div class="o_form_label">
+                  Additional Thai Localization Variables:
+                </div>
+                <div>
+                    <span style="margin-left: 10px;">Quarter of the Year: %%(qoy)s</span>
+                </div>
+                <div>
+                    <span style="margin-left: 10px;">Current Buddhist Era (BE) year with century: %%(year_be)s</span>
+                </div>
+                <div>
+                    <span style="margin-left: 10px;">Current Buddhist Era (BE) Year without Century: %%(y_be)s</span>
+                </div>
             </xpath>
         </field>
     </record>

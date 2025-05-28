@@ -14,5 +14,5 @@ class ResCompany(models.Model):
         ],
         default="payment",
         string="Customer Tax Invoices Number",
-        help="If checked, wht cert form will show layout pre-print",
+        help="Determines whether the customer tax invoice number should be based on the payment's name or the invoice's name/reference.",
     )
