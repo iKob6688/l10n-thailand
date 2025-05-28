@@ -327,9 +327,11 @@ class WithHoldingTaxReport(models.TransientModel):
         return {
             "partner_vat": partner.vat or " " * 13,  # space when no vat
             "partner_branch": partner.branch,
-            "partner_bank_account": line.wht_cert_bank_account.sanitized_acc_number
-            if line.wht_cert_income_type == "4A"
-            else "",
+            "partner_bank_account": (
+                line.wht_cert_bank_account.sanitized_acc_number
+                if line.wht_cert_income_type == "4A"
+                else ""
+            ),
             "partner_firstname": firstname,
             "partner_lastname": lastname,
             "partner_address": address,

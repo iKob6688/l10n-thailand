@@ -4,7 +4,7 @@
         <field name="name">Send by email</field>
         <field name="res_model">mail.compose.message</field>
         <field name="view_mode">form</field>
-        <field name="binding_model_id" ref="model_withholding_tax_cert" />
+        <field name="binding_model_id" ref="l10n_th_account_tax.model_withholding_tax_cert" /> <!-- Corrected module name -->
         <field name="binding_view_types">form</field>
         <field name="target">new</field>
         <field

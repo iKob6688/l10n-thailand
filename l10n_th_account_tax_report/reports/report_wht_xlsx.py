@@ -163,7 +163,7 @@ class WithholdingTaxReportXslx(models.AbstractModel):
         return row_pos
 
     def _write_ws_footer(self, row_pos, ws, obj):
-        results = obj.results.filtered(lambda l: l.cert_id.state == "done")
+        results = obj.results.filtered(lambda res_line: res_line.cert_id.state == "done")  # l -> res_line
         ws.merge_range(row_pos, 0, row_pos, 6, "")
         ws.merge_range(row_pos, 9, row_pos, 10, "")
         ws.write_row(
