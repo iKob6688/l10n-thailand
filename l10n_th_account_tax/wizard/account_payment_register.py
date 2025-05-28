@@ -19,7 +19,13 @@ class AccountPaymentRegister(models.TransientModel):
         help="Based amount for the tax amount",
     )
 
-    @api.onchange("wht_tax_id", "wht_amount_base", "source_amount", "source_currency_id", "payment_date")
+    @api.onchange(
+        "wht_tax_id",
+        "wht_amount_base",
+        "source_amount",
+        "source_currency_id",
+        "payment_date",
+    )
     def _onchange_wht_fields(self):
         # This onchange now handles the logic previously split across multiple methods
         # and aims to integrate better with Odoo 18's payment difference handling.
@@ -45,26 +51,26 @@ class AccountPaymentRegister(models.TransientModel):
                     self.company_id,
                     self.payment_date,
                 )
-            else: # Regular WHT
+            else:  # Regular WHT
                 amount_wht = self.wht_tax_id.amount / 100 * self.wht_amount_base
-            
+
             if amount_wht > 0:
                 self.payment_difference = amount_wht
                 self.payment_difference_handling = "reconcile"
                 self.writeoff_account_id = self.wht_tax_id.account_id
                 self.writeoff_label = self.wht_tax_id.display_name
-            else: # Reset if WHT amount is zero
+            else:  # Reset if WHT amount is zero
                 self.payment_difference = 0.0
                 # Keep 'reconcile' if it was already set, or let user choose 'open'
                 # self.payment_difference_handling = "open" # Or keep existing
                 self.writeoff_account_id = False
                 self.writeoff_label = False
-        else: # No WHT tax or base amount, reset difference fields
+        else:  # No WHT tax or base amount, reset difference fields
             self.payment_difference = 0.0
             # self.payment_difference_handling = "open" # Or keep existing
             self.writeoff_account_id = False
             self.writeoff_label = False
-        
+
         # After potential changes to payment_difference, amount needs recomputing.
         # This will be handled by _compute_amount or related onchanges in Odoo 18.
         # We might need to explicitly trigger recomputation of amount if not done automatically.
@@ -75,7 +81,11 @@ class AccountPaymentRegister(models.TransientModel):
         payment_vals = super()._create_payment_vals_from_wizard()
         # If WHT was applied (resulting in a reconcile operation with a specific account)
         # ensure the write-off line vals reflect this.
-        if self.payment_difference_handling == "reconcile" and self.wht_tax_id and self.writeoff_account_id == self.wht_tax_id.account_id:
+        if (
+            self.payment_difference_handling == "reconcile"
+            and self.wht_tax_id
+            and self.writeoff_account_id == self.wht_tax_id.account_id
+        ):
             # Odoo 18's super method already prepares write_off_line_vals based on wizard fields.
             # We need to ensure our custom wht_amount_base is available if needed by account.payment logic
             # that was removed. However, the standard write_off_line_vals only contains 'name', 'amount', 'account_id'.
@@ -85,14 +95,16 @@ class AccountPaymentRegister(models.TransientModel):
             # or by further modifying payment_vals if account.payment expects new keys.
             # The `_prepare_writeoff_move_line` logic is now mostly redundant if super() handles it,
             # unless we need to add more keys to `payment_vals` directly.
-            
+
             # Let's ensure the wht_amount_base is passed if it's used by other logic not yet identified
             # as needing refactoring (e.g., if account.payment itself was extended by another module
             # to use this, though unlikely for core).
             # For now, this module's custom `_prepare_writeoff_move_line` will be called to keep consistency
             # with its original intent, even if some keys are not used by Odoo 18 core.
             payment_vals["write_off_line_vals"] = self._prepare_writeoff_move_line(
-                 payment_vals.get("write_off_line_vals") # Pass what super might have prepared
+                payment_vals.get(
+                    "write_off_line_vals"
+                )  # Pass what super might have prepared
             )
             # Add wht_tax_id to payment_vals directly if it needs to be stored on account.payment
             # This is not standard, but if previous versions relied on it:
@@ -106,8 +118,8 @@ class AccountPaymentRegister(models.TransientModel):
         "company_id",
         "currency_id",
         "payment_date",
-        "payment_difference", # Added dependency
-        "payment_difference_handling", # Added dependency
+        "payment_difference",  # Added dependency
+        "payment_difference_handling",  # Added dependency
     )
     def _compute_amount(self):
         """
@@ -119,7 +131,7 @@ class AccountPaymentRegister(models.TransientModel):
         The refactored _onchange_wht_fields now sets payment_difference.
         So, _compute_amount should primarily rely on super() or core Odoo's way.
         """
-        super()._compute_amount() # This should now correctly use payment_difference set by _onchange_wht_fields
+        super()._compute_amount()  # This should now correctly use payment_difference set by _onchange_wht_fields
 
         # The old logic to auto-deduct WHT from invoices is removed from here.
         # That logic was complex and better handled by explicit user selection of WHT on the wizard,
@@ -155,14 +167,18 @@ class AccountPaymentRegister(models.TransientModel):
         # Odoo might create separate payments if not grouped.
         # This check's relevance depends on how Odoo 18's `_create_payments` handles `group_payment`
         # when write-offs are involved. For now, keeping the check.
-        if self.wht_tax_id and self.payment_difference_handling == 'reconcile' and not self.group_payment:
+        if (
+            self.wht_tax_id
+            and self.payment_difference_handling == "reconcile"
+            and not self.group_payment
+        ):
             # This check might be too restrictive or needs adjustment based on Odoo 18's grouping.
             # For example, if Odoo 18 forces individual payments when there's a write-off,
             # this error might always trigger.
             # However, if user explicitly sets group_payment=False with WHT, it could be an issue.
             # For now, let's assume if WHT is applied, it should imply a single payment for the batch.
             # This part might need further review against Odoo 18 behavior.
-            pass # Temporarily bypass strict check, needs review.
+            pass  # Temporarily bypass strict check, needs review.
             # raise UserError(
             #     _(
             #         "Please check Group Payments when dealing "
@@ -185,21 +201,24 @@ class AccountPaymentRegister(models.TransientModel):
         # we should respect that and only add our custom keys if truly necessary for other extensions,
         # or ensure this method aligns with what the core expects if it were to call this.
         # For now, let's assume it should return a dict for a single write-off line.
-        
+
         # If super() in _create_payment_vals_from_wizard already populated write_off_line_vals
         # with the correct account, name, and amount, we just return it.
         # The custom keys are unlikely to be used by core Odoo 18.
-        if write_off_line_vals and write_off_line_vals.get("account_id") == self.writeoff_account_id.id:
-             # Add custom keys if they are still used by some other part of this module or extensions
-             # write_off_line_vals["wht_tax_id"] = self.wht_tax_id.id
-             # write_off_line_vals["wht_amount_base"] = self.wht_amount_base
+        if (
+            write_off_line_vals
+            and write_off_line_vals.get("account_id") == self.writeoff_account_id.id
+        ):
+            # Add custom keys if they are still used by some other part of this module or extensions
+            # write_off_line_vals["wht_tax_id"] = self.wht_tax_id.id
+            # write_off_line_vals["wht_amount_base"] = self.wht_amount_base
             return write_off_line_vals
 
         # If super() didn't prepare it or it's not what we expect for WHT,
         # construct it fully (this was the old behavior).
         return {
             "name": self.writeoff_label,
-            "amount": self.payment_difference, # This is the WHT amount
+            "amount": self.payment_difference,  # This is the WHT amount
             # 'partner_id': self.partner_id.id, # Odoo 18 might add this if needed
             "account_id": self.writeoff_account_id.id,
             # Custom keys, may not be used by Odoo 18 core:

@@ -73,24 +73,28 @@ class AccountPayment(models.Model):
                     raise UserError(_("Please fill in tax invoice and tax date"))
             payment.write({"to_clear_tax": False})
             moves = payment.tax_invoice_ids.mapped("move_id")
-            for move in moves.filtered(lambda l: l.state == "draft"):
-                move.ensure_one()
-                move.action_post()
+            for move_rec in moves.filtered(lambda m: m.state == "draft"):  # l -> m
+                move_rec.ensure_one()
+                move_rec.action_post()
                 # Reconcile Case Basis
-                line = move.line_ids.filtered(
-                    lambda l: l.id
+                line = move_rec.line_ids.filtered(
+                    lambda ml: ml.id  # l -> ml
                     not in payment.tax_invoice_ids.mapped("move_line_id").ids
                 )
                 if line.account_id.reconcile:
-                    origin_ml = move.tax_cash_basis_origin_move_id.line_ids
-                    counterpart_line = origin_ml.filtered(
-                        lambda l: l.account_id.id == line.account_id.id
+                    origin_ml_lines = (
+                        move_rec.tax_cash_basis_origin_move_id.line_ids
+                    )  # origin_ml -> origin_ml_lines
+                    counterpart_line = origin_ml_lines.filtered(
+                        lambda c_ml: c_ml.account_id.id
+                        == line.account_id.id  # l -> c_ml
                     )
                     # Get counterpart line for expense
-                    credit_move = move.tax_cash_basis_rec_id.credit_move_id
+                    credit_move = move_rec.tax_cash_basis_rec_id.credit_move_id
                     if hasattr(credit_move, "expense_id") and credit_move.expense_id:
                         counterpart_line = counterpart_line.filtered(
-                            lambda l: l.expense_id.id == credit_move.expense_id.id
+                            lambda exp_ml: exp_ml.expense_id.id
+                            == credit_move.expense_id.id  # l -> exp_ml
                         )
                     (line + counterpart_line).reconcile()
         return True

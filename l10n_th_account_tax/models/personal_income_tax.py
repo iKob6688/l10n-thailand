@@ -76,9 +76,10 @@ class PersonalIncomeTax(models.Model):
         self.ensure_one()
         if not pit_date:
             pit_date = fields.Date.context_today(self)
-        pit_date.strftime("%Y")
+        pit_date.strftime("%Y")  # This line has no effect, strftime returns a string
         rate_ranges = self.rate_ids.filtered(
-            lambda l: abs(total_income) > l.income_from
+            lambda rate_line: abs(total_income)
+            > rate_line.income_from  # l -> rate_line
         )
         current_amount = 0.0
         income_residual = income
@@ -136,7 +137,7 @@ class PersonalIncomeTax(models.Model):
             pit_date = fields.Date.context_today(self)
         calendar_year = pit_date.strftime("%Y")
         pit_year = partner.pit_move_ids.filtered(
-            lambda l: l.calendar_year == calendar_year
+            lambda pit_move: pit_move.calendar_year == calendar_year  # l -> pit_move
         )
         return sum(pit_year.mapped("amount_income"))
 
@@ -181,5 +182,7 @@ class PersonalIncomeTaxRate(models.Model):
 
     def _compute_amount_accum(self):
         for rec in self:
-            prev_rec = self.filtered(lambda l: l.sequence <= rec.sequence)
+            prev_rec = self.filtered(
+                lambda rate_line: rate_line.sequence <= rec.sequence
+            )  # l -> rate_line
             rec.amount_tax_accum = sum(prev_rec.mapped("amount_tax_max"))
