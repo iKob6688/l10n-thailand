@@ -2,6 +2,7 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
 import datetime
+from unittest.mock import patch
 
 from dateutil.relativedelta import relativedelta
 
@@ -61,20 +62,79 @@ class TestResCurrencyRateProviderBOT(common.TransactionCase):
             }
         )
         date = self.today - relativedelta(days=1)
-        self.bot_provider1._update(date, date)
+        with self.assertRaisesRegex(
+            UserError,
+            "Bank of Thailand is suitable only for companies with THB as base currency!",
+        ):
+            self.bot_provider1._update(date, date)
         # Check service BOT
         self.assertIn(self.eur_currency, self.bot_provider1.available_currency_ids)
+        # Ensure that none_provider update still works (no error)
         self.none_provider._update(date, date)
 
-    def test_03_update_no_clien_id(self):
+    @patch(
+        "odoo.addons.currency_rate_update_TH_BOT.models.res_currency_rate_provider_BOT.requests.get"
+    )
+    def test_03_update_no_client_id(self, mock_get):
         self.my_company.bot_client_id = False
         date = self.today - relativedelta(days=1)
-        self.bot_provider._update(date, date)
+        with self.assertRaisesRegex(UserError, "No bot.or.th credentials specified!"):
+            self.bot_provider._update(date, date)
+        mock_get.assert_not_called()
 
-    def test_04_update_clien_id_fail(self):
+    @patch(
+        "odoo.addons.currency_rate_update_TH_BOT.models.res_currency_rate_provider_BOT.requests.get"
+    )
+    def test_04_update_client_id_api_error_handling(self, mock_get):
         self.my_company.bot_client_id = "Test"
         date = self.today - relativedelta(days=1)
+
+        # Scenario 1: API returns an error structure
+        mock_get.return_value.ok = False  # Simulate HTTP error
+        mock_get.return_value.json.return_value = {
+            # "result": False, # This key might be missing in some error responses
+            "httpCode": "401",
+            "moreInformation": "Unauthorized - Invalid API Key",
+        }
+        with self.assertRaisesRegex(
+            UserError, "httpCode: 401\nmoreInformation: Unauthorized - Invalid API Key"
+        ):
+            self.bot_provider._update(date, date)
+        mock_get.assert_called_once()
+
+        # Scenario 2: API returns success (ok=True) but 'result' key is missing or False
+        mock_get.reset_mock()
+        mock_get.return_value.ok = True
+        mock_get.return_value.json.return_value = {
+            "httpCode": "200",  # Present but no 'result'
+            "moreInformation": "Success but no result field",
+        }
+        with self.assertRaisesRegex(
+            UserError, "httpCode: 200\nmoreInformation: Success but no result field"
+        ):
+            self.bot_provider._update(date, date)
+        self.assertEqual(mock_get.call_count, 1)
+
+        # Scenario 3: API returns success, 'result' is present, but 'data_detail' is empty
+        mock_get.reset_mock()
+        mock_get.return_value.ok = True
+        mock_get.return_value.json.return_value = {
+            "result": {
+                "data_header": {"last_updated": date.strftime("%Y-%m-%d")},
+                "data_detail": [],  # No currency data for the requested period/currency
+            }
+        }
+        # This should not raise an error, but simply find no rates
         self.bot_provider._update(date, date)
+        rates = self.CurrencyRate.search(
+            [
+                ("company_id", "=", self.my_company.id),
+                ("currency_id", "=", self.eur_currency.id),
+                ("name", "=", date),
+            ]
+        )
+        self.assertEqual(len(rates), 0)
+        self.assertEqual(mock_get.call_count, 1)  # Called for EUR
 
     def test_05_update_content(self):
         """After call api to BOT, it will return value"""
@@ -136,9 +196,15 @@ class TestResCurrencyRateProviderBOT(common.TransactionCase):
             date,
             date,
         )
-        # Check not found currency when call api.
-        with self.assertRaises(UserError):
-            result_demo["data"]["data_header"]["last_updated"] = "2023-09-10"
+        # Check not found currency when call api (date_from > last_updated)
+        with self.assertRaisesRegex(UserError, "BOT Last Updated: 2023-09-10"):
+            result_demo_error = result_demo.copy()
+            result_demo_error["data"] = result_demo["data"].copy()
+            result_demo_error["data"]["data_header"] = result_demo["data"][
+                "data_header"
+            ].copy()
+            result_demo_error["data"]["data_header"]["last_updated"] = "2023-09-10"
+            # date is 2023-09-19, so date > last_updated
             self.bot_provider._update_content_currency_update(
-                self.eur_currency, {}, result_demo, date, date
+                self.eur_currency, {}, result_demo_error, date, date
             )
